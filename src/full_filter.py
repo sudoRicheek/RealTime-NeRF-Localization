@@ -146,9 +146,11 @@ class NeRF:
         pose_dummy = torch.from_numpy(nerf_pose).cuda()
         with torch.no_grad():
             print(nerf_pose)
-            rgb, disp, acc, _ = render(self.H, self.W, self.focal, chunk=self.chunk, c2w=pose_dummy[:3, :4], **self.render_kwargs)
+            rgb, disp, acc, _ = render(self.H//4, self.W//4, self.focal//4, chunk=self.chunk,
+                                       c2w=pose_dummy[:3, :4], **self.render_kwargs)
             rgb = rgb.cpu().detach().numpy()
             rgb8 = to8b(rgb)
             ref = to8b(self.obs_img)
-        plt.imshow(rgb8)
-        plt.show()
+        # plt.imshow(rgb8)
+        # plt.show()
+        return rgb8

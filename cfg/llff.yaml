@@ -16,8 +16,9 @@ num_particles: 300 # Number of initial particles.
 
 #### dataset and weight loading ####
 dataset_type: llff # llff, custom
-ckpt_dir: /home/dominic/inerf/ckpts
-data_dir: /home/dominic/inerf/data/nerf_llff_data # only needed for LLFF data
+dataset_name: horns # name of the dataset
+ckpt_dir: /root/catkin_ws/src/RealTime-NeRF-Localization/ckpts/NeRF-pytorch-pretrained-models/
+data_dir: /root/catkin_ws/src/RealTime-NeRF-Localization/data/nerf_llff_data/ # only needed for LLFF data
 
 #### convergence protection #####
 # randomly sample a few particle positions to protect against false convergence
@@ -32,7 +33,7 @@ global_loc_mode: False # Perform Loc-NeRF with Loc-NeRF.
 log_results: False # Save pose estimate for each iteration. Also save a file with gt pose and the initial pose guess if use_logged_start is False.
 use_logged_start: True # use saved logs for initial pose
 log_prefix: use_annealing # add a prefix to the log file names for convenience to keep track of different runs
-log_directory: /home/dominic/mocNeRF_ws/src/locnerf/logs/inerf_compare # Directory to save npy files.
+log_directory: /root/catkin_ws/src/RealTime-NeRF-Localization/logs/inerf_compare # Directory to save npy files.
 forward_passes_limit: 78643200 # end optimization after this number of forward passes have run
 
 #### custom data realtime tracking mode params ####

@@ -42,6 +42,8 @@ class Navigator(NavigatorBase):
         self.particle_pub = rospy.Publisher("/particles", PoseArray, queue_size = 10)
         self.pose_pub = rospy.Publisher("/estimated_pose", Odometry, queue_size = 10)
         self.gt_pub = rospy.Publisher("/gt_pose", PoseArray, queue_size = 10)
+        # self.img_pub = rospy.Publisher("/gt_image", Image, queue_size = 10)
+        self.nerf_pub = rospy.Publisher("/nerf_image", Image, queue_size = 10)
 
         # Set up subscribers.
         # We don't need callbacks to compare against inerf.
@@ -236,6 +238,9 @@ class Navigator(NavigatorBase):
 
         if self.plot_particles:
             self.visualize()
+
+        image = self.nerf.visualize_nerf_image(self.nerf_pose)
+        self.nerf_pub.publish(self.br.cv2_to_imgmsg(image))
             
         # TODO add ability to render several frames
         if self.view_debug_image_iteration != 0 and (self.num_updates == self.view_debug_image_iteration):
@@ -462,8 +467,8 @@ if __name__ == "__main__":
 
     if run_inerf_compare:
         num_starts_per_dataset = 5 # TODO make this a param
-        datasets = ['fern', 'horns', 'fortress', 'room'] # TODO make this a param
-        # datasets = ['fern']
+        # datasets = ['fern', 'horns', 'fortress', 'room'] # TODO make this a param
+        datasets = ['horns']
 
         total_position_error_good = []
         total_rotation_error_good = []
@@ -477,9 +482,9 @@ if __name__ == "__main__":
             used_img_nums = set()
             for i in range(num_starts_per_dataset):
                 if not use_logged_start:
-                    img_num = np.random.randint(low=0, high=20) # TODO can increase the range of images
+                    img_num = np.random.randint(low=0, high=100) # TODO can increase the range of images
                     while img_num in used_img_nums:
-                        img_num = np.random.randint(low=0, high=20)
+                        img_num = np.random.randint(low=0, high=100)
                     used_img_nums.add(img_num)
                 
                 else:
@@ -521,7 +526,7 @@ if __name__ == "__main__":
 
     # run normal live ROS mode
     else:
-        mcl = Navigator()      
+        mcl = Navigator()  
         while not rospy.is_shutdown():
             if mcl.img_msg is not None:
                 mcl.rgb_run(mcl.img_msg)
