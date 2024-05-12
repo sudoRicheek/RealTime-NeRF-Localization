@@ -8,6 +8,7 @@ __pycache__/
 data/
 ckpts/
 logs/
+outputs/
 
 # Distribution / packaging
 .Python
