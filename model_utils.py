@@ -7,6 +7,9 @@ from nerfstudio.engine.trainer import TrainerConfig
 from nerfstudio.pipelines.base_pipeline import Pipeline
 from nerfstudio.configs.method_configs import all_methods
 
+from camera_utils import update_camera
+from general_utils import particle2pose, image_mse
+
 
 def setup_pipeline_from_config(config_path: Path, device: torch.device = torch.device("cuda")) -> Pipeline:
     config = yaml.load(config_path.read_text(), Loader=yaml.Loader)
@@ -36,3 +39,29 @@ def setup_pipeline_from_config(config_path: Path, device: torch.device = torch.d
     print(f"Loaded checkpoint from {load_path}")
 
     return pipeline
+
+
+def get_losses(pipeline, camera, particles, gt_img):
+    """
+        Takes in a list of particles and returns the loss for each particle
+        based on the photometric loss function.
+
+    Args:
+        pipeline (Pipeline): The pipeline object
+        camera (Camera): The camera object already initialized with camera_type,
+                         w,h,fx,fy,cx,cy,k1,k2,p1,p2. ASSUME THAT THE DOWNSAMPLING
+                         FACTOR HAS BEEN INCORPORATED INTO THE CAMERA OBJECT
+        particles (list): List of particles containing pose information
+        gt_img (np.array): Ground truth image (H,W,3). ASSUME THAT THE IMAGE
+                           HAS BEEN DOWNSAMPLED AND IS IN THE RANGE [0, 1]
+        downsample (int): Downsample factor for the image and the reconstruction
+    """
+    losses = []
+    num_particles = particles.shape[0]
+    for i in range(num_particles):
+        camera = update_camera(camera, particle2pose(particles[i]))
+        rgb_image = pipeline.model.get_rgba_image(
+                            pipeline.model.get_outputs_for_camera(camera)
+                    )[..., :3] # This image is in the range [0, 1]
+        losses[i] = image_mse(rgb_image, gt_img)
+    return losses

@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 from nerfstudio.cameras.cameras import Cameras
 
@@ -47,4 +48,23 @@ def update_camera(camera, c2w):
         c2w: Camera to world matrix of shape (3, 4) ndarray
     """
     camera.camera_to_worlds = torch.tensor(c2w, dtype=torch.float32, device=camera.device).unsqueeze(0)
+    return camera
+
+
+def init_camera_from_json(gt_transforms, device="cuda"):
+    """
+    Initialize the camera object from the camera parameters in the JSON file
+
+    Args:
+        gt_transforms: Camera parameters from the JSON file
+        device: Device to use (str) (default: "cuda")
+    """
+    camera_type = 1
+    w, h = gt_transforms["w"], gt_transforms["h"]
+    fx, fy, cx, cy = gt_transforms["fl_x"], gt_transforms["fl_y"], gt_transforms["cx"], gt_transforms["cy"]
+    k1, k2, p1, p2 = gt_transforms["k1"], gt_transforms["k2"], gt_transforms["p1"], gt_transforms["p2"]
+    c2w = np.array(gt_transforms["frames"][0]["transform_matrix"])[:3]
+    
+    camera = setup_camera(c2w, fx, fy, cx, cy, w, h,
+                          k1, k2, p1, p2, camera_type, device)
     return camera
