@@ -1,8 +1,15 @@
 import json
 import numpy as np
+from PIL import Image
 from pathlib import Path
 
+import torch
+from torch.utils.data import Dataset
+
 from nerfstudio.data.datamanagers.base_datamanager import VanillaDataManager
+
+from general_utils import pose2particle
+
 
 class CustomDataManager(VanillaDataManager):
     """
@@ -42,3 +49,40 @@ class CustomDataManager(VanillaDataManager):
             item = item * self.scale
         return item
     
+
+class OdometryDataset(Dataset):
+    def __init__(self, dataset_path: Path, config_path: Path,
+                 downsample: int = 8, device: str = "cuda"):
+        self.data = json.load(open(dataset_path / "transforms.json", "r"))
+        self.dir = dataset_path
+        self.downsample = downsample
+        self.device = device
+
+        data_transform_path = Path(config_path).parent / "dataparser_transforms.json"
+        data_transform = json.load(open(data_transform_path, "r"))
+        self.transform = np.array(data_transform["transform"])
+        self.scale = float(data_transform["scale"])
+
+    def __len__(self):
+        return len(self.data["frames"])
+    
+    def __getitem__(self, idx):
+        """
+        Returns the image and the transform matrix for the idx-th frame
+        img as a tensor of shape (H//downsample, W//downsample, 3)
+        transform_matrix as a np.array of shape (7,) [x, y, z, q1, q2, q3, q4]
+        """
+        file_path = self.data["frames"][idx]["file_path"]
+        transform_matrix = np.array(self.data["frames"][idx]["transform_matrix"])
+        img = Image.open(self.dir / file_path)
+        img = img.resize((img.width // self.downsample, img.height // self.downsample))
+
+        # Normalize the image to [0, 1]
+        img = np.array(img) / 255.0
+        img = torch.tensor(img).to(self.device)
+
+        # transformed_transform_matrix = self.transform @ transform_matrix
+        # transformed_transform_matrix[:, 3] *= self.scale
+        transform_matrix[:3, 3] *= self.scale
+
+        return img, pose2particle(transform_matrix[:3])

@@ -1,6 +1,7 @@
 import os
 import yaml
 import torch
+import numpy as np
 from pathlib import Path
 
 from nerfstudio.engine.trainer import TrainerConfig
@@ -56,12 +57,22 @@ def get_losses(pipeline, camera, particles, gt_img):
                            HAS BEEN DOWNSAMPLED AND IS IN THE RANGE [0, 1]
         downsample (int): Downsample factor for the image and the reconstruction
     """
-    losses = []
     num_particles = particles.shape[0]
-    for i in range(num_particles):
-        camera = update_camera(camera, particle2pose(particles[i]))
+    losses = np.zeros(num_particles)
+    with torch.no_grad():
+        for i in range(num_particles):
+            camera = update_camera(camera, particle2pose(particles[i]))
+            rgb_image = pipeline.model.get_rgba_image(
+                                pipeline.model.get_outputs_for_camera(camera)
+                        )[..., :3] # This image is in the range [0, 1]
+            losses[i] = image_mse(rgb_image, gt_img)
+    return losses
+
+
+def render_camera_pose(pipeline, camera, particle):
+    with torch.no_grad():
+        camera = update_camera(camera, particle2pose(particle))
         rgb_image = pipeline.model.get_rgba_image(
                             pipeline.model.get_outputs_for_camera(camera)
-                    )[..., :3] # This image is in the range [0, 1]
-        losses[i] = image_mse(rgb_image, gt_img)
-    return losses
+                    )[..., :3]
+    return (rgb_image * 255).cpu().numpy().astype(np.uint8)

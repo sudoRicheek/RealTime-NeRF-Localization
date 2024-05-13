@@ -30,26 +30,28 @@ class ParticleFilter:
         quaternions = normalize_quat(quaternions)
         self.particles = np.concatenate((positions, quaternions), axis=1) # (num_particles, 7)
     
-    def predict_particles(self, del_pose, position_noise, rotation_noise):
-        # del_pose: (7,)
-        # position_noise: (3,)
-        # rotation_noise: (3,)
-        trans_odom = del_pose[:3]
-        quat_odom = del_pose[3:] # q1.inv() * q2
+    def predict_particles(self, del_particle, position_noise, rotation_noise):
+        # del_particle: (7,) Delta change in the particle pose
+        # position_noise: (3,) nd array of noise in position
+        # rotation_noise: (3,) nd array of noise in rotation euler angles
+        trans_odom = del_particle[:3]
+        quat_odom = quaternion.from_float_array(del_particle[3:]) # q1.inv() * q2
         trans_noise = position_noise * rng.normal(size=(self.num_particles, 3))
-        quat_noise = np.quaternion(
+
+        # With this I realize that this quaternion library doesnt have the most basic functionalities.
+        # TODO: Use a better quaternion library, or do it on numpy directly.
+        quat_noise = quaternion.as_quat_array(
                         normalize_quat(
                             quaternion.as_float_array(
                                 quaternion.from_euler_angles(
                                     rotation_noise * rng.normal(size=(self.num_particles, 3))
                      ))))
         # predict particles
-        for _ in range(self.num_particles):
-            self.particles[:, :3] = self.particles[:, :3] + trans_odom + trans_noise
-            self.particles[:, 3:] = quaternion.as_float_array(
-                                        quaternion.from_float_array(self.particles[:, 3:]) *\
-                                              quat_odom *\
-                                                  quat_noise
+        self.particles[:, :3] = self.particles[:, :3] + trans_odom + trans_noise
+        for i in range(self.num_particles):
+            self.particles[i, 3:] = quaternion.as_float_array(
+                                        quaternion.from_float_array(self.particles[i, 3:]) *\
+                                        quat_odom * quat_noise[i]
                                     )
 
     def update_weights(self, losses):

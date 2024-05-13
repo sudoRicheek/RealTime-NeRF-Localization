@@ -3,11 +3,14 @@ import json
 import torch
 import argparse
 import numpy as np
+from tqdm import tqdm
 from pathlib import Path
 
-from datamanager import CustomDataManager
-from model_utils import setup_pipeline_from_config
+from datamanager import OdometryDataset
+from model_utils import setup_pipeline_from_config, get_losses, render_camera_pose
 from camera_utils import init_camera_from_json
+from particle_filter import ParticleFilter
+from general_utils import delta_particle, particle2pose, load_pf_json
 
 parser = argparse.ArgumentParser(usage="Real-Time NeRF Localization")
 
@@ -18,8 +21,12 @@ parser.add_argument("--load_dir", type=str, default="/home/richeek/spot_outdoor"
                     help="Path to the directory containing the GT poses")
 
 # Model Options
-parser.add_argument("--num_particles", type=int, default=100,
-                    help="Number of particles to use in the particle filter")
+parser.add_argument("--pf_config", type=str, default="configs/particle_spot.json",
+                    help="Path to the particle filter config file")
+
+# Saving Options
+parser.add_argument("--save_nerf_renderings", action="store_true",
+                    help="Save the NeRF renderings for the particles")
 
 # Compute Device Options
 parser.add_argument("--device", type=str, default="cuda",
@@ -32,29 +39,55 @@ def main():
     device = torch.device(args.device)
     data_path = Path(args.load_dir)
     config_path = Path(args.config)
+    num_particles, downsample, particle_initial_bounds, particle_noise_levels = load_pf_json(args.pf_config)
 
+    #! Load the data manager
+    data_manager = OdometryDataset(data_path, config_path,
+                                   downsample=downsample, device=device)
+
+    #! Load the pipeline from the config file. This is our NeRF model + Data Manager
     pipeline = setup_pipeline_from_config(config_path, device)
 
     #! Load the transforms.json to get the camera parameters
-    gt_transforms = json.load(open(data_path / "transforms.json", "r"))
-    camera = init_camera_from_json(gt_transforms, device)
+    transforms = json.load(open(data_path / "transforms.json", "r"))
+    camera = init_camera_from_json(transforms, downsample=downsample, device=device)
 
     #! Initialize the particle filter with reasonable bounds on the scene
-    particle_initial_bounds = {
-        "position": [[-1, -4, -1], [0, -2, 0]],
-        "rotation": [[-np.pi/2, np.pi/4, np.pi/4], [-np.pi/4, np.pi/2, 3*np.pi/4]]
-    }
-    particle_noise_levels = {
-        "position": np.array([0.1, 0.1, 0.1]),
-        "rotation": np.array([0.01, 0.01, 0.01])
-    }
-    
+    PF = ParticleFilter(num_particles, particle_initial_bounds)
 
+    img0, particle0 = data_manager[0]
+    for i in tqdm(range(1, len(data_manager))):
+        img1, particle1 = data_manager[i]
+        del_particle = delta_particle(particle0, particle1)
 
+        # predict the next state
+        PF.predict_particles(del_particle, particle_noise_levels["position"], particle_noise_levels["rotation"])
 
+        # update the weights
+        losses = get_losses(pipeline, camera, PF.particles, img1)
+        PF.update_weights(losses)
 
-    breakpoint()
+        # resample the particles
+        PF.resample_particles()
 
+        #! Print Stuff
+        best_particle = PF.get_best_particle()
+        best_pose = particle2pose(best_particle)
+        avg_position = PF.get_average_position()
+        avg_rotation = PF.get_average_rotation()
+
+        print(f"Best Particle: {best_particle}")
+        print(f"Best Pose: {best_pose}")
+        print(f"Average Position: {avg_position}")
+        print(f"Average Rotation: {avg_rotation}")
+
+        print(f"GT Pose: {particle2pose(particle1)}")
+
+        cv2.imwrite(f"outputs/spot_outdoor/particle_{i}.png", render_camera_pose(pipeline, camera, best_particle))
+        cv2.imwrite(f"outputs/spot_outdoor/gt_{i}.png", (img1 * 255).cpu().numpy().astype(np.uint8))
+        cv2.imwrite(f"outputs/spot_outdoor/gt_pose_{i}.png", render_camera_pose(pipeline, camera, particle1))
+
+        img0, particle0 = img1, particle1
 
 
 

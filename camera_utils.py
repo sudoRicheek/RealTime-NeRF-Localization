@@ -51,19 +51,21 @@ def update_camera(camera, c2w):
     return camera
 
 
-def init_camera_from_json(gt_transforms, device="cuda"):
+def init_camera_from_json(transforms, downsample=8, device="cuda"):
     """
     Initialize the camera object from the camera parameters in the JSON file
 
     Args:
-        gt_transforms: Camera parameters from the JSON file
+        transforms: Camera parameters from the JSON file
+        downsample: Downsample factor (int) (default: 8)
         device: Device to use (str) (default: "cuda")
     """
     camera_type = 1
-    w, h = gt_transforms["w"], gt_transforms["h"]
-    fx, fy, cx, cy = gt_transforms["fl_x"], gt_transforms["fl_y"], gt_transforms["cx"], gt_transforms["cy"]
-    k1, k2, p1, p2 = gt_transforms["k1"], gt_transforms["k2"], gt_transforms["p1"], gt_transforms["p2"]
-    c2w = np.array(gt_transforms["frames"][0]["transform_matrix"])[:3]
+    w, h = transforms["w"]//downsample, transforms["h"]//downsample
+    fx, fy = transforms["fl_x"]/downsample, transforms["fl_y"]/downsample
+    cx, cy = transforms["cx"]/downsample, transforms["cy"]/downsample
+    k1, k2, p1, p2 = transforms["k1"], transforms["k2"], transforms["p1"], transforms["p2"]
+    c2w = np.array(transforms["frames"][0]["transform_matrix"])[:3]
     
     camera = setup_camera(c2w, fx, fy, cx, cy, w, h,
                           k1, k2, p1, p2, camera_type, device)
