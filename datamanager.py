@@ -51,8 +51,10 @@ class CustomDataManager(VanillaDataManager):
     
 
 class OdometryDataset(Dataset):
-    def __init__(self, dataset_path: Path, config_path: Path,
+    def __init__(self, dataset_path: Path, config_path: Path, gtpose_path: Path,
                  downsample: int = 8, device: str = "cuda"):
+        self.gtdata = json.load(open(gtpose_path, "r")) # gt pose path is path to the json file containing gt poses
+
         self.data = json.load(open(dataset_path / "transforms.json", "r"))
         self.dir = dataset_path
         self.downsample = downsample
@@ -74,6 +76,7 @@ class OdometryDataset(Dataset):
         """
         file_path = self.data["frames"][idx]["file_path"]
         transform_matrix = np.array(self.data["frames"][idx]["transform_matrix"])
+        gt_transform_matrix = np.array(self.gtdata["frames"][idx]["transform_matrix"])
         img = Image.open(self.dir / file_path)
         img = img.resize((img.width // self.downsample, img.height // self.downsample))
 
@@ -81,8 +84,9 @@ class OdometryDataset(Dataset):
         img = np.array(img) / 255.0
         img = torch.tensor(img).to(self.device)
 
-        # transformed_transform_matrix = self.transform @ transform_matrix
-        # transformed_transform_matrix[:, 3] *= self.scale
+        transform_matrix = self.transform @ transform_matrix
+        gt_transform_matrix = self.transform @ gt_transform_matrix
         transform_matrix[:3, 3] *= self.scale
+        gt_transform_matrix[:3, 3] *= self.scale
 
-        return img, pose2particle(transform_matrix[:3])
+        return img, pose2particle(transform_matrix[:3]), pose2particle(gt_transform_matrix[:3])

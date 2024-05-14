@@ -1,0 +1,12 @@
+{
+    "num_particles": 300,
+    "downsample": 16,
+    "particle_initial_bounds": {
+        "position": [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
+        "rotation": [[-3.16, 1.5, 1.5], [-3.13, 1.6, 1.6]]
+    },
+    "particle_noise_levels": {
+        "position": [1e-2, 1e-2, 1e-2],
+        "rotation": [1e-3, 1e-3, 1e-3]
+    }
+}
